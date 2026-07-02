@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AssetCategory {
+  REAL_ESTATE
+  COLLECTIBLES
+  LUXURY_GOODS
+  VEHICLES
+  ART
+  EQUIPMENT
+  OTHER
+}
+
+enum ValuationStatus {
+  STABLE
+  PENDING_REVALUATION
+  REVALUATION_APPROVED
+}
+
+enum AssetStatus {
+  DRAFT
+  PENDING_APPROVAL
+  LIVE
+  PAUSED
+  CLOSED
+  REJECTED
+}
+
+enum RevenueType {
+  FIXED
+  VARIABLE
+}
+
+enum ShareType {
+  BASIC
+  PREMIUM
+}
+
+enum ShareDistributionMode {
+  FREE_CHOICE
+  FIXED_RATIO
+}
+
+enum TxType {
+  PURCHASE
+  RESALE
+}
+
+enum TxStatus {
+  PENDING
+  DB_CONFIRMED
+  BLOCKCHAIN_CONFIRMED
+  FAILED_BLOCKCHAIN
+  FAILED
+}
+
+enum BlockchainJobStatus {
+  QUEUED
+  PROCESSING
+  CONFIRMED
+  FAILED
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  CANCELLED
+}
+
+model User {
+  id             String          @id @default(uuid())
+  email          String          @unique
+  passwordHash   String
+  fullName       String
+  role           UserRole        @default(USER)
+  kycStatus      KycStatus       @default(PENDING)
+  walletBalance  Decimal         @default(0) @db.Decimal(18, 8)
+  walletAddress  String?
+  phone          String?
+  dateOfBirth    String?
+  gender         String?
+  profession     String?
+  education      String?
+  avatarUrl      String?
+  avatarId       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  kyc            KycDocument?
+  assets         Asset[]         @relation("AssetPublisher")
+  ownerships     ShareOwnership[]
+  buyTxns        Transaction[]   @relation("Buyer")
+  sellTxns       Transaction[]   @relation("Seller")
+  refreshTokens  RefreshToken[]
+  sellerListings ShareListing[]  @relation("SellerListings")
+  buyerListings  ShareListing[]  @relation("BuyerListings")
+  paymentMethods PaymentMethod[]
+  withdrawalRequests WithdrawalRequest[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model KycDocument {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentType  String
+  cloudinaryUrl String
+  cloudinaryId  String
+  status        KycStatus @default(PENDING)
+  adminNote     String?
+  reviewedAt    DateTime?
+  reviewedBy    String?
+  createdAt     DateTime  @default(now())
+}
+
+model Asset {
+  id                     String                @id @default(uuid())
+  publisherId            String
+  publisher              User                  @relation("AssetPublisher", fields: [publisherId], references: [id])
+  title                  String
+  description            String
+  category               AssetCategory         @default(OTHER)
+  externalReferenceUrl   String?
+  valuationStatus        ValuationStatus       @default(STABLE)
+  proposedValuation      Decimal?              @db.Decimal(18, 8)
+  proposedValuationNote  String?
+  lastTradedPrice        Decimal?              @db.Decimal(18, 8)
+  lastTradedAt           DateTime?
+  priceHistory           Json?
+  totalValuation         Decimal               @db.Decimal(18, 8)
+  totalShares            Int
+  sharesAvailableForSale Int
+  status                 AssetStatus           @default(DRAFT)
+  generatesRevenue       Boolean               @default(false)
+  revenueType            RevenueType?
+  estimatedAnnualRevenue Decimal?              @db.Decimal(18, 8)
+  distributionMode       ShareDistributionMode @default(FREE_CHOICE)
+  basicSharesAllotted    Int?
+  premiumSharesAllotted  Int?
+  contractTokenId        Int?
+  contractTokenIdPremium Int?
+  mintTxHash             String?
+  documentUrl            String?
+  documentId             String?
+  adminNote              String?
+  approvedAt             DateTime?
+  approvedBy             String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  ownerships             ShareOwnership[]
+  transactions           Transaction[]
+  blockchainJobs         BlockchainJob[]
+  listings               ShareListing[] 
+  premiumSharePrice      Decimal?              @db.Decimal(18, 8)
+}
+
+model ShareOwnership {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  assetId         String
+  asset           Asset     @relation(fields: [assetId], references: [id])
+  shareType       ShareType
+  quantity        Int
+  averageBuyPrice Decimal   @db.Decimal(18, 8)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, assetId, shareType])
+}
+
+model Transaction {
+  id               String    @id @default(uuid())
+  assetId          String
+  asset            Asset     @relation(fields: [assetId], references: [id])
+  buyerId          String
+  buyer            User      @relation("Buyer", fields: [buyerId], references: [id])
+  sellerId         String?
+  seller           User?     @relation("Seller", fields: [sellerId], references: [id])
+  shareType        ShareType
+  quantity         Int
+  pricePerShare    Decimal   @db.Decimal(18, 8)
+  totalAmount      Decimal   @db.Decimal(18, 8)
+  txType           TxType
+  status           TxStatus  @default(PENDING)
+  blockchainTxHash String?
+  failureReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  blockchainJob    BlockchainJob?
+}
+
+model BlockchainJob {
+  id            String              @id @default(uuid())
+  transactionId String              @unique
+  transaction   Transaction         @relation(fields: [transactionId], references: [id])
+  assetId       String
+  asset         Asset               @relation(fields: [assetId], references: [id])
+  jobType       String
+  status        BlockchainJobStatus @default(QUEUED)
+  attempts      Int                 @default(0)
+  maxAttempts   Int                 @default(3)
+  lastError     String?
+  txHash        String?
+  runAt         DateTime            @default(now()) // Modified: Used for sorting queue items and handling backoff delays
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([status, runAt]) // Modified: Added a high-speed database index for rapid queue filtering
+}
+
+model ShareListing {
+  id            String        @id @default(uuid())
+  sellerId      String
+  seller        User          @relation("SellerListings", fields: [sellerId], references: [id])
+  assetId       String
+  asset         Asset         @relation(fields: [assetId], references: [id])
+  shareType     ShareType
+  quantity      Int
+  pricePerShare Decimal       @db.Decimal(18, 8)
+  status        ListingStatus @default(ACTIVE)
+  buyerId       String?
+  buyer         User?         @relation("BuyerListings", fields: [buyerId], references: [id])
+  soldAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model PaymentMethod {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  accountHolderName String?
+  accountNumber     String?
+  ifscCode          String?
+  bankName          String?
+  branch            String?
+  upiId             String?
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model WithdrawalRequest {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  amount             Decimal  @db.Decimal(18, 8)
+  status             String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  destinationType    String   // "UPI" or "BANK"
+  destinationDetails String   // The actual UPI ID or Account Number
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
