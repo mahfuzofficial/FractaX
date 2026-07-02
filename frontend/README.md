@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# FractaX Frontend
 
-TODO: Document your project here
+TODO: Document the frontend setup and usage here.
