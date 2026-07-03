@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://fractax.onrender.com';
+const API_BASE_URL = 'https://fractax.onrender.com/api';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -52,7 +52,7 @@ client.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh-token`, { refreshToken });
+        const { data } = await axios.post('/auth/refresh-token', { refreshToken });
         const newToken = data.data.accessToken;
         localStorage.setItem('accessToken', newToken);
         processQueue(null, newToken);
