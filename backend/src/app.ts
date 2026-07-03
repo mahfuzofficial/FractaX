@@ -1,9 +1,10 @@
 import express, { Request, Response, NextFunction } from "express";
 import morgan from "morgan";
+import cors from "cors"; // 1. Import cors
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
-import { startBlockchainWorker } from "./blockchain/jobs/worker"; // Modified: Dynamic local database loop tracker
+import { startBlockchainWorker } from "./blockchain/jobs/worker";
 import secondaryRoutes from "./modules/marketplace/secondary.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import userRoutes from "./modules/user/user.routes";
@@ -16,34 +17,27 @@ import profileRoutes from "./modules/user/profile.routes";
 
 const app = express();
 
-// Initialize the database worker loop cleanly when server boots up
 startBlockchainWorker();
 
-const allowedOrigins = [
-  "http://localhost:8080",
-  env.FRONTEND_URL,
-];
+// 2. Configure CORS options
+const corsOptions = {
+  origin: [
+    "http://localhost:8080",
+    "https://fractax.vercel.app" // Ensure this matches your production URL exactly
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const origin = req.headers.origin as string;
-  // ADD THIS LINE TO DEBUG
-  console.log("Incoming Origin:", origin, "Allowed Origins:", allowedOrigins);
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  next();
-});
+// 3. Apply CORS middleware
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
+
+// ... your routes ...
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/kyc", kycRoutes);
